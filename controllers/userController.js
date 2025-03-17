@@ -37,8 +37,12 @@ exports.login = async (req, res) => {
 };
 
 exports.register = async (req, res) => {
+    
     try {
         const { name, email, password, role, address } = req.body;
+
+        res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4001');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
 
         const existingUser = await User.findOne({ where: { email } });
         if (existingUser) return res.status(400).json({ msg: 'User already exists' });

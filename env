@@ -1,8 +1,0 @@
-DB_HOST=turntable.proxy.rlwy.net
-DB_PORT=18516
-DB_USER=root
-DB_PASSWORD=bKZiIHTJvrWNLfxrMzhuYCpsAblkncCf
-DB_NAME=railway
-DB_DIALECT=mysql
-JWT_SECRET=pD9E6mCjQ8s5XwA2KfV3nZtY7LrB0oH4GqJ1uT6P
-JWT_EXPIRES_IN=7d
