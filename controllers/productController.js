@@ -8,8 +8,9 @@ const BASE_URL = 'http://localhost:5000'; // Ensure this is set correctly
 
 // Function to properly construct the image URL by removing any leading slashes from the file path
 const constructImageUrl = (imagePath) => {
-    return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`; // Remove leading slashes
+  return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`;
 };
+
 
 //  Get All Products (Public)
 const getAllProducts = async (req, res) => {
