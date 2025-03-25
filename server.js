@@ -24,6 +24,25 @@ const app = express();
  
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const allowedOrigins = [
+    "http://localhost:3000",
+  ];
+  
+  app.use(
+    cors({
+      origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
+      credentials: true,
+    })
+  );
+  
+
+
 app.use(cors({ credentials: true, origin: 'http://localhost:3000' })); 
 app.use(express.json());
 app.use(cookieParser());
