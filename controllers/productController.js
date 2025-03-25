@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const OrderItem = require('../models/OrderItem');
 
-const BASE_URL = 'https://mishatotebag-backend.onrender.com'; // Ensure this is set correctly
+const BASE_URL = 'http://localhost:5000'; // Ensure this is set correctly
 
 // Function to properly construct the image URL by removing any leading slashes from the file path
 const constructImageUrl = (imagePath) => {
