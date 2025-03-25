@@ -4,12 +4,15 @@ const path = require('path');
 const fs = require('fs');
 const OrderItem = require('../models/OrderItem');
 
-const BASE_URL = process.env.BASE_URL ;
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 
 // Function to properly construct the image URL by removing any leading slashes from the file path
 const constructImageUrl = (imagePath) => {
-  return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`;
-};
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http')) return imagePath; // don't touch full URLs
+    return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`;
+  };
+  
 
 
 //  Get All Products (Public)
