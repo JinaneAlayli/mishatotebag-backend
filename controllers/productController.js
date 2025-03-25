@@ -4,13 +4,13 @@ const path = require('path');
 const fs = require('fs');
 const OrderItem = require('../models/OrderItem');
 
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000'; // Ensure this is set correctly
+const BASE_URL = process.env.BASE_URL ;
 
 // Function to properly construct the image URL by removing any leading slashes from the file path
 const constructImageUrl = (imagePath) => {
-    return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`; // Remove leading slashes
+  return `${BASE_URL}/${imagePath.replace(/^\/+/, '')}`;
 };
+
 
 //  Get All Products (Public)
 const getAllProducts = async (req, res) => {
@@ -88,7 +88,13 @@ const addProduct = async (req, res) => {
             user_id
         });
 
-        res.status(201).json({ message: 'Product added successfully!', product });
+        // Map image paths to full URLs before returning
+        const updatedProduct = {
+            ...product.toJSON(),
+            image: imagePaths.map(image => constructImageUrl(image))
+        };
+
+        res.status(201).json({ message: 'Product added successfully!', product: updatedProduct });
     } catch (error) {
         console.error('Error adding product:', error);
         res.status(500).json({ error: 'Server error' });
@@ -132,7 +138,13 @@ const updateProduct = async (req, res) => {
             image: JSON.stringify(imageUrls)  // Update images
         });
 
-        res.status(200).json({ message: 'Product updated successfully.', product });
+        // Map image paths to full URLs before returning
+        const updatedProduct = {
+            ...product.toJSON(),
+            image: imageUrls.map(image => constructImageUrl(image))
+        };
+
+        res.status(200).json({ message: 'Product updated successfully.', product: updatedProduct });
     } catch (error) {
         console.error('Error updating product:', error);
         res.status(500).json({ error: 'Failed to update product.' });
