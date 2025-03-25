@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const OrderItem = require('../models/OrderItem');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
+const BASE_URL = process.env.BASE_URL  ;
 
 // Function to properly construct the image URL by removing any leading slashes from the file path
 const constructImageUrl = (imagePath) => {
@@ -37,6 +37,7 @@ const getAllProducts = async (req, res) => {
                 image: imagePaths
             };
         });
+        console.log("  BASE_URL in use:", BASE_URL);
 
         res.status(200).json(updatedProducts);
     } catch (error) {
