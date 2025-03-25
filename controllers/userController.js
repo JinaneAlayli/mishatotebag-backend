@@ -3,235 +3,158 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Order = require('../models/Order');
 
-exports.login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({ error: 'Email and password are required' });
-        }
-
-        const user = await User.findOne({ 
-            where: { email }, 
-            attributes: ['id', 'name', 'email', 'role', 'address', 'password'] 
-        });
-
-        if (!user) {
-            return res.status(404).json({ error: 'No account found with this email' });
-        }
-
-        const isPasswordValid = bcrypt.compareSync(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ error: 'Incorrect password' });
-        }
-
-        if (!process.env.JWT_SECRET) {
-            return res.status(500).json({ error: "Server configuration error: JWT_SECRET is missing." });
-        }
-
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { 
-            expiresIn: process.env.JWT_EXPIRES_IN || '24h' 
-        });
-
-        res.cookie('token', token, {
-            httpOnly: true,  
-            secure: process.env.NODE_ENV === 'production',  
-            sameSite: 'strict', 
-            maxAge: 7 * 24 * 60 * 60 * 1000 
-        });
-
-        const { password: _, ...userWithoutPassword } = user.dataValues;
-
-        return res.status(200).json({ 
-            message: 'Login successful', 
-            user: userWithoutPassword  
-        });
-
-    } catch (error) {
-        console.error('Login Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
-    }
-};
-  
- 
+// --- Helpers ---
 const validateEmail = (email) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
-
 const validatePassword = (password) => /^(?=.*[A-Z])(?=.*\d).{6,}$/.test(password);
-
 const hashPassword = (password) => password ? bcrypt.hashSync(password, 10) : null;
 
+const updateUserFields = async (user, { name, email, newPassword, address }) => {
+    if (email && email !== user.email) {
+        if (!validateEmail(email)) throw new Error('Invalid email format');
+        const existing = await User.findOne({ where: { email } });
+        if (existing) throw new Error('This email is already in use');
+    }
+
+    if (newPassword && !validatePassword(newPassword)) {
+        throw new Error('Password must be at least 6 characters long, contain 1 uppercase letter and 1 number');
+    }
+
+    user.name = name || user.name;
+    user.email = email || user.email;
+    user.password = newPassword ? hashPassword(newPassword) : user.password;
+    user.address = address || user.address;
+
+    await user.save();
+    const { password, ...userWithoutPassword } = user.dataValues;
+    return userWithoutPassword;
+};
+
+// --- Controllers ---
 exports.register = async (req, res) => {
     try {
         const { name, email, password, role, address } = req.body;
+        if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required' });
 
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: 'Name, email, and password are required' });
-        }
-
-        if (!validateEmail(email)) {
-            return res.status(400).json({ error: 'Invalid email format' });
-        }
-
-        if (!validatePassword(password)) {
-            return res.status(400).json({ 
-                error: 'Password must be at least 6 characters long, contain at least 1 uppercase letter and 1 number' 
-            });
-        }
-
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
-            return res.status(409).json({ error: 'An account with this email already exists' });
-        }
-
-        const hashedPassword = hashPassword(password);
-
-        const newUser = await User.create({ 
-            name, 
-            email, 
-            password: hashedPassword, 
-            role: role || 'customer',  
-            address: address || null   
+        if (!validateEmail(email)) return res.status(400).json({ error: 'Invalid email format' });
+        if (!validatePassword(password)) return res.status(400).json({
+            error: 'Password must be at least 6 characters long, contain at least 1 uppercase letter and 1 number'
         });
 
-        return res.status(201).json({ 
-            message: 'User registered successfully!', 
-            user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role, address: newUser.address } 
+        const exists = await User.findOne({ where: { email } });
+        if (exists) return res.status(409).json({ error: 'Email already exists' });
+
+        const newUser = await User.create({
+            name, email, password: hashPassword(password),
+            role: role || 'customer',
+            address: address || null
         });
 
-    } catch (error) {
-        console.error('Registration Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+        const { password: _, ...created } = newUser.dataValues;
+        res.status(201).json({ message: 'User registered successfully!', user: created });
+
+    } catch (err) {
+        console.error('Registration Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
+    }
+};
+
+exports.login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+        const user = await User.findOne({ where: { email }, attributes: ['id', 'name', 'email', 'role', 'address', 'password'] });
+        if (!user) return res.status(404).json({ error: 'No account found with this email' });
+
+        const valid = bcrypt.compareSync(password, user.password);
+        if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+
+        if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'Server config error: JWT_SECRET missing' });
+
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+            expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+        });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000
+        });
+
+        const { password: _, ...userData } = user.dataValues;
+        res.status(200).json({ message: 'Login successful', user: userData });
+
+    } catch (err) {
+        console.error('Login Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
+    }
+};
+
+exports.logout = async (req, res) => {
+    try {
+        res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
+        res.status(200).json({ message: 'Logout successful!' });
+    } catch (err) {
+        console.error('Logout Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 };
 
 exports.updateUser = async (req, res) => {
     try {
-        const { name, email, newPassword, address } = req.body;
-        const userId = req.user.id;  
+        const user = await User.findByPk(req.user.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-        const user = await User.findByPk(userId);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
+        const updatedUser = await updateUserFields(user, req.body);
+        res.status(200).json({ message: 'User updated successfully!', user: updatedUser });
 
-        if (email && email !== user.email) {
-            if (!validateEmail(email)) {
-                return res.status(400).json({ error: 'Invalid email format' });
-            }
-
-            const existingUser = await User.findOne({ where: { email } });
-            if (existingUser) {
-                return res.status(409).json({ error: 'This email is already in use' });
-            }
-        }
-
-        let updatedPassword = user.password;
-        if (newPassword) {
-            if (!validatePassword(newPassword)) {
-                return res.status(400).json({ 
-                    error: 'New password must be at least 6 characters long, contain at least 1 uppercase letter and 1 number' 
-                });
-            }
-            updatedPassword = hashPassword(newPassword);
-        }
-
-        user.name = name || user.name;
-        user.email = email || user.email;
-        user.password = updatedPassword;
-        user.address = address || user.address;
-
-        await user.save();
-
-        const { password: _, ...updatedUser } = user.dataValues;
-
-        return res.status(200).json({ 
-            message: 'User updated successfully!', 
-            user: updatedUser 
-        });
-
-    } catch (error) {
-        console.error('Update User Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    } catch (err) {
+        console.error('Update Error:', err);
+        res.status(400).json({ error: err.message || 'Something went wrong' });
     }
 };
 
-
-exports.logout = async (req, res) => {
+exports.updateUserById = async (req, res) => {
     try {
-        res.cookie('token', '', { 
-            httpOnly: true, 
-            expires: new Date(0)  
-        });
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-        return res.status(200).json({ message: 'Logout successful!' });
+        const updatedUser = await updateUserFields(user, req.body);
+        res.status(200).json({ message: 'User updated successfully!', user: updatedUser });
 
-    } catch (error) {
-        console.error('Logout Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    } catch (err) {
+        console.error('Admin Update Error:', err);
+        res.status(400).json({ error: err.message || 'Something went wrong' });
     }
 };
 
-exports.getUserById = async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Access denied! Admins only.' });
-        }
-
-        const { id } = req.params;
-        const user = await User.findByPk(id, {
-            attributes: ['id', 'name', 'email', 'role', 'address']
-        });
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        return res.status(200).json({ user });
-
-    } catch (error) {
-        console.error('Get User By ID Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
-    }
-};
- 
 exports.getMe = async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
             attributes: ['id', 'name', 'email', 'role', 'address']
         });
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        return res.status(200).json({ user });
-
-    } catch (error) {
-        console.error('Get Me Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.status(200).json({ user });
+    } catch (err) {
+        console.error('Get Me Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 };
 
-exports.deleteUser = async (req, res) => {
+exports.getUserById = async (req, res) => {
     try {
-        const { id } = req.params;
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admins only!' });
 
-        const user = await User.findByPk(id);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
+        const user = await User.findByPk(req.params.id, {
+            attributes: ['id', 'name', 'email', 'role', 'address']
+        });
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-        const orderCount = await Order.count({ where: { user_id: id } });
-        if (orderCount > 0) {
-            return res.status(400).json({ error: 'User cannot be deleted because they have existing orders' });
-        }
-
-        await User.destroy({ where: { id } });
-
-        return res.status(200).json({ message: 'User deleted successfully' });
-    } catch (error) {
-        console.error('Delete User Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+        res.status(200).json({ user });
+    } catch (err) {
+        console.error('Get User Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 };
 
@@ -240,65 +163,30 @@ exports.getAllUsers = async (req, res) => {
         const users = await User.findAll({
             attributes: ['id', 'name', 'email', 'role', 'address']
         });
-
-        return res.status(200).json({ users });
-    } catch (error) {
-        console.error('Get All Users Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+        res.status(200).json({ users });
+    } catch (err) {
+        console.error('Get Users Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 };
-exports.updateUserById = async (req, res) => {
+
+exports.deleteUser = async (req, res) => {
     try {
-        const { id } = req.params; // Extract user ID from route parameters
-        const { name, email, newPassword, address } = req.body; // Extract fields to update
+        const { id } = req.params;
 
-        // Find the user by ID
         const user = await User.findByPk(id);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const orderCount = await Order.count({ where: { user_id: id } });
+        if (orderCount > 0) {
+            return res.status(400).json({ error: 'Cannot delete user with existing orders' });
         }
 
-        // Validate email if it's being updated
-        if (email && email !== user.email) {
-            if (!validateEmail(email)) {
-                return res.status(400).json({ error: 'Invalid email format' });
-            }
+        await User.destroy({ where: { id } });
+        res.status(200).json({ message: 'User deleted successfully' });
 
-            const existingUser = await User.findOne({ where: { email } });
-            if (existingUser) {
-                return res.status(409).json({ error: 'This email is already in use' });
-            }
-        }
-
-        // Hash new password if provided
-        let updatedPassword = user.password;
-        if (newPassword) {
-            if (!validatePassword(newPassword)) {
-                return res.status(400).json({
-                    error: 'New password must be at least 6 characters long, contain at least 1 uppercase letter and 1 number',
-                });
-            }
-            updatedPassword = hashPassword(newPassword);
-        }
-
-        // Update user fields
-        user.name = name || user.name;
-        user.email = email || user.email;
-        user.password = updatedPassword;
-        user.address = address || user.address;
-
-        await user.save();
-
-        // Exclude password from the response
-        const { password: _, ...updatedUser } = user.dataValues;
-
-        return res.status(200).json({
-            message: 'User updated successfully!',
-            user: updatedUser,
-        });
-    } catch (error) {
-        console.error('Update User By ID Error:', error);
-        return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    } catch (err) {
+        console.error('Delete User Error:', err);
+        res.status(500).json({ error: 'Something went wrong' });
     }
 };
-
