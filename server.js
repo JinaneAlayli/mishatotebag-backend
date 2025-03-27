@@ -26,6 +26,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const allowedOrigins = [
     "http://localhost:3000",
+    "https://mishatote-front-sjue.vercel.app/",
   ];
   
   app.use(
