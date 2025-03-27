@@ -28,7 +28,7 @@ const allowedOrigins = [
     "http://localhost:3000",
     "https://mishatote-front-sjue.vercel.app",
     "https://mishatote-front-sjue-eqpm9tezw-rolamaaloufs-projects.vercel.app",
-    "https://mishatote-front-sjue-git-main-rolamaaloufs-projects.vercel.app/",
+    "https://mishatote-front-sjue-git-main-rolamaaloufs-projects.vercel.app",
   ];
   
   app.use(
@@ -44,9 +44,7 @@ const allowedOrigins = [
     })
   );
   
-
-
-app.use(cors({ credentials: true, origin: 'http://localhost:3000' })); 
+ 
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json());
