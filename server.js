@@ -27,6 +27,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const allowedOrigins = [
     "http://localhost:3000",
     "https://mishatote-front-sjue.vercel.app",
+    "https://mishatote-front-sjue-eqpm9tezw-rolamaaloufs-projects.vercel.app",
+    "https://mishatote-front-sjue-git-main-rolamaaloufs-projects.vercel.app/",
   ];
   
   app.use(
