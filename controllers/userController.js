@@ -93,8 +93,13 @@ exports.login = async (req, res) => {
 
 exports.logout = async (req, res) => {
     try {
-        res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
-        res.status(200).json({ message: 'Logout successful!' });
+        res.cookie("token", "", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+            expires: new Date(0),
+          });
+         res.status(200).json({ message: 'Logout successful!' });
     } catch (err) {
         console.error('Logout Error:', err);
         res.status(500).json({ error: 'Something went wrong' });
